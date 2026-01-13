@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEST="lightsail-server:/home/dan/wordpress/html/wp-content/assets/2026marginal_tax_calc/"
+PUBLIC_PREFIX_URL="taxpolicy.org.uk/wp-content/assets/2026marginal_tax_calc/"
+
+# --- Load Cloudflare creds from ../.env ---
+# Expects:
+#   cloudflare_tpal_zone=YOUR_ZONE_ID
+#   cloudflare_purge_cache_api=YOUR_API_TOKEN
+if [[ -f ../.env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ../.env
+  set +a
+else
+  echo "⚠️  ../.env not found; will try environment variables already present." >&2
+fi
+
+: "${cloudflare_tpal_zone:?Missing cloudflare_tpal_zone (Cloudflare Zone ID)}"
+: "${cloudflare_purge_cache_api:?Missing cloudflare_purge_cache_api (Cloudflare API token)}"
+
+# --- Ensure destination exists ---
+ssh lightsail-server "mkdir -p '/home/dan/wordpress/html/wp-content/assets/2026marginal_tax_calc/'"
+
+# --- Rsync: only regular files in current dir; exclude this script by name ---
+rsync -avz --progress \
+  --exclude '*/' \
+  --exclude "$(basename "$0")" \
+  ./ "$DEST"
+
+echo "✅ Upload complete."
+
+# --- Purge Cloudflare cache by URL prefix ---
+echo "🔄 Purging Cloudflare cache for prefix:"
+echo "    $PUBLIC_PREFIX_URL"
+
+CF_API="https://api.cloudflare.com/client/v4/zones/${cloudflare_tpal_zone}/purge_cache"
+
+# Build minimal JSON payload with one prefix
+PAYLOAD=$(printf '{"prefixes":["%s"]}' "$PUBLIC_PREFIX_URL")
+
+HTTP_CODE=$(
+  curl -sS -o /tmp/cf_purge_resp.json -w "%{http_code}" \
+    -X POST "$CF_API" \
+    -H "Authorization: Bearer ${cloudflare_purge_cache_api}" \
+    -H "Content-Type: application/json" \
+    --data "$PAYLOAD"
+)
+
+if [[ "$HTTP_CODE" != "200" ]]; then
+  echo "❌ Cloudflare purge HTTP error (status $HTTP_CODE)" >&2
+  echo "Response:" >&2
+  cat /tmp/cf_purge_resp.json >&2 || true
+  exit 1
+fi
+
+# Check "success": true in JSON (jq optional; fallback to grep)
+if command -v jq >/dev/null 2>&1; then
+  if jq -e '.success == true' /tmp/cf_purge_resp.json >/dev/null; then
+    echo "✅ Cloudflare cache purged successfully."
+  else
+    echo "❌ Cloudflare purge reported failure:" >&2
+    cat /tmp/cf_purge_resp.json >&2
+    exit 1
+  fi
+else
+  if grep -q '"success":true' /tmp/cf_purge_resp.json; then
+    echo "✅ Cloudflare cache purged successfully."
+  else
+    echo "❌ Cloudflare purge reported failure (install jq for better diagnostics):" >&2
+    cat /tmp/cf_purge_resp.json >&2
+    exit 1
+  fi
+fi
+
+# Cleanup temp file
+rm -f /tmp/cf_purge_resp.json
+
