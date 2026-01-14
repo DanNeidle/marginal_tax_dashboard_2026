@@ -36,7 +36,7 @@ createApp({
             CHART_COLOURS: ['#1133AF', '#FF5733'],
 
             // --- UI Bound State ---
-            selectedDataset: "2025-26 UK",
+            selectedDataset: "2026-27 UK",
             chartType: 'Marginal rate',
             employmentType: 'Employed',
             children: 0,
@@ -44,7 +44,7 @@ createApp({
             includeStudentLoan: false,
             includeMarriageAllowance: false,
             selectedStudentLoanPlan: 'plan2',
-            compareDataset: "2027-28 UK",
+            compareDataset: "2026-27 Scotland",
             selectedMarginalIncomeType: 'primary',
             customIncomeInput: null,
             displayedIncome: null,
