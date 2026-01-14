@@ -394,6 +394,14 @@ createApp({
         formatCurrency(value) {
             return `£${Math.round(value).toLocaleString('en-GB')}`;
         },
+        formatCurrencyWithDecimals(value, decimals = 2) {
+            const factor = 10 ** decimals;
+            const rounded = Math.round(value * factor) / factor;
+            return `£${rounded.toLocaleString('en-GB', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            })}`;
+        },
 
         getChildBenefitAmount(relevantData) {
             if (!relevantData || this.children === 0) {
@@ -1068,7 +1076,7 @@ createApp({
             const effectiveRate = this.latestPrimarySummary.effectiveRate;
             this.latestPrimarySummary.marginalRate = marginalRate;
 
-            this.summaryResults.afterTaxIncome = this.formatCurrency(netIncome);
+            this.summaryResults.afterTaxIncome = this.formatCurrencyWithDecimals(netIncome, 2);
             this.summaryResults.totalTax = this.formatCurrency(displayedTotalTax);
             this.summaryResults.effectiveRate = this.formatPercent(effectiveRate);
             this.summaryResults.marginalRate = this.formatPercent(marginalRate);
@@ -1272,7 +1280,7 @@ createApp({
         formatDeltaCurrency(value) {
             if (value === null || value === undefined) return "-";
             const sign = value > 0 ? '+' : value < 0 ? '-' : '';
-            return `${sign}${this.formatCurrency(Math.abs(value))}`;
+            return `${sign}${this.formatCurrencyWithDecimals(Math.abs(value), 2)}`;
         },
 
         formatDeltaPercent(value) {
